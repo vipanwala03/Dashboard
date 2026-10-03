@@ -2,6 +2,14 @@
 
 import { createClient } from "@/lib/supabase/client";
 
+const GOOGLE_SCOPES = [
+  "openid",
+  "email",
+  "profile",
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/tasks",
+].join(" ");
+
 export function SignInButton() {
   const supabase = createClient();
 
@@ -10,8 +18,10 @@ export function SignInButton() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
-        // Ask Google for offline access now so a refresh token comes back —
-        // Phase 3/4 (Calendar + Tasks) need it and re-prompting later is a pain.
+        scopes: GOOGLE_SCOPES,
+        // Forces Google to hand back a refresh token every time, so the
+        // Calendar/Tasks access (Phase 3/4) survives past the 1-hour
+        // access token lifetime without asking you to sign in again.
         queryParams: {
           access_type: "offline",
           prompt: "consent",
