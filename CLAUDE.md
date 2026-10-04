@@ -85,6 +85,12 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       must be typed/dictated by the user — Claude never guesses addresses. Needs the Gmail
       API enabled in Google Cloud, the scope on the OAuth consent screen, and a fresh
       sign-in to grant it.
+      Deleting events: clicking any calendar event opens `src/components/event-dialog.tsx`
+      (details + Open in Google + two-step Delete); the ask box also understands "delete my
+      study block tomorrow" and shows a confirm card first. Both call `deleteEventsAction` →
+      `deleteCalendarEvent` (a recurring event deletes just that occurrence). Events on
+      read-only calendars (`accessRole` not owner/writer) can't be deleted. The AI only sees
+      the next 7 days, and it never deletes without the confirm click.
 - [ ] Phase 8 — PWA / installable
 - [ ] Phase 9 (optional) — native App Store wrap via Capacitor
 

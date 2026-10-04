@@ -15,6 +15,11 @@ export type CalendarEvent = {
   calendarName: string;
   // The calendar's color in Google Calendar, e.g. "#9fe1e7".
   color: string;
+  // What Google needs to address the event (the `id` above mixes both).
+  calendarId: string;
+  eventId: string;
+  // False on calendars you can only read (holidays, a shared class schedule).
+  canDelete: boolean;
 };
 
 export type CalendarRange = {
@@ -40,6 +45,7 @@ type GoogleCalendarListEntry = {
   primary?: boolean;
   // Checked in Google Calendar's sidebar.
   selected?: boolean;
+  accessRole?: "freeBusyReader" | "reader" | "writer" | "owner";
 };
 
 type GoogleEvent = {
@@ -134,6 +140,9 @@ export async function listCalendarRange(
           end,
           calendarName,
           color: cal.backgroundColor,
+          calendarId: cal.id,
+          eventId: e.id,
+          canDelete: cal.accessRole === "owner" || cal.accessRole === "writer",
         },
         day: startDay,
         time: allDay ? 0 : new Date(start).getTime(),
@@ -176,4 +185,24 @@ export async function createCalendarEvent(
       },
     }
   );
+}
+
+// Deletes one event (for a recurring event shown expanded, just that
+// occurrence). Already gone (404/410) counts as success.
+export async function deleteCalendarEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string
+): Promise<void> {
+  try {
+    await googleFetch<void>(
+      "Google Calendar",
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      accessToken,
+      { method: "DELETE" }
+    );
+  } catch (err) {
+    if (err instanceof Error && /\((404|410)\)/.test(err.message)) return;
+    throw err;
+  }
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { addDays, minutesInZone } from "@/lib/dates";
+import { EventDialog } from "./event-dialog";
 import {
   rangeTitle,
   type AllDayItem,
@@ -154,20 +155,26 @@ function AllDayChip({ item }: { item: AllDayItem }) {
   );
 }
 
-function EventBlock({ event }: { event: PositionedEvent }) {
+function EventBlock({
+  event,
+  onSelect,
+}: {
+  event: PositionedEvent;
+  onSelect: () => void;
+}) {
   const duration = Math.max(event.endMin - event.startMin, 25);
   const compact = duration < 50;
   const top = (event.startMin / 60) * HOUR_HEIGHT;
   const height = (duration / 60) * HOUR_HEIGHT;
   const width = 100 / event.cols;
-  const Wrapper = event.suggested ? "div" : "a";
+  // Real events open a details dialog (with Delete); suggestions have their
+  // own cards in the AI planner panel.
+  const Wrapper = event.suggested ? "div" : "button";
   return (
     <Wrapper
-      {...(event.suggested
-        ? {}
-        : { href: event.href, target: "_blank", rel: "noreferrer" })}
+      {...(event.suggested ? {} : { type: "button", onClick: onSelect })}
       title={`${event.title}\n${event.timeLabel}${event.location ? `\n${event.location}` : ""}\n${event.calendarName}`}
-      className={`absolute flex flex-col gap-0.5 overflow-hidden rounded-lg border px-2 py-1 text-ink transition-[filter] hover:z-10 hover:brightness-125 ${event.suggested ? "border-dashed" : ""}`}
+      className={`absolute flex flex-col gap-0.5 overflow-hidden rounded-lg border px-2 py-1 text-left text-ink transition-[filter] hover:z-10 hover:brightness-125 ${event.suggested ? "border-dashed" : ""}`}
       style={{
         top: top + 1,
         height: height - 3,
@@ -257,6 +264,11 @@ export function WeekView({
 }) {
   const [choice, setChoice] = useState<ViewChoice>(null);
   const [nowMin, setNowMin] = useState(initialNowMin);
+  const [selected, setSelected] = useState<{
+    event: PositionedEvent;
+    dayKey: string;
+  } | null>(null);
+  const closeDialog = useCallback(() => setSelected(null), []);
 
   // Keep the "now" line moving.
   useEffect(() => {
@@ -403,7 +415,11 @@ export function WeekView({
                 }}
               >
                 {d.timed.map((e) => (
-                  <EventBlock key={e.id} event={e} />
+                  <EventBlock
+                    key={e.id}
+                    event={e}
+                    onSelect={() => setSelected({ event: e, dayKey: d.key })}
+                  />
                 ))}
                 {d.isToday && (
                   <div
@@ -420,6 +436,13 @@ export function WeekView({
           </div>
         </div>
       </div>
+      {selected && (
+        <EventDialog
+          event={selected.event}
+          dayKey={selected.dayKey}
+          onClose={closeDialog}
+        />
+      )}
     </section>
   );
 }

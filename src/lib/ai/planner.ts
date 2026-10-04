@@ -16,19 +16,35 @@ export type Proposal = {
 // it first. `to` is empty when the request didn't include an address.
 export type EmailDraft = { to: string; subject: string; body: string };
 
+// An existing calendar event Claude wants removed. Nothing is deleted until
+// the user confirms.
+export type DeletionCandidate = {
+  calendarId: string;
+  eventId: string;
+  title: string;
+  allDay: boolean;
+  start: string;
+  end: string;
+};
+
 export type PlanResult = {
   proposals: Proposal[];
   email: EmailDraft | null;
+  deletions: DeletionCandidate[];
+  // Set when Claude picked events the user can't delete (read-only calendar).
+  skippedReadOnly: number;
 };
 
 const MODEL = "claude-sonnet-5-5";
 const MAX_PROPOSALS = 5;
 const MAX_DURATION_MIN = 8 * 60;
 
-const SYSTEM_PROMPT = `You are the assistant inside a personal dashboard. The user has a Google Calendar, a Google Tasks list, and quick notes. You do one of two jobs, depending on the request:
+const SYSTEM_PROMPT = `You are the assistant inside a personal dashboard. The user has a Google Calendar, a Google Tasks list, and quick notes. You do one of three jobs, depending on the request:
 
 1. Scheduling (the default): propose concrete calendar events that turn what they asked for (or what a note says) into time on their calendar. Leave "emails" empty.
 2. Email: if the user asks you to write, draft or send an email or message to someone, write ONE email in "emails" and leave "proposals" empty. The user reviews it before anything is sent.
+
+3. Deleting: if the user asks to remove, delete or cancel existing calendar events, list them in "deletions" by their id from the calendar list (E1, E2, ...) and leave "proposals" and "emails" empty. Only pick events that clearly match the request; if it's ambiguous, pick none. Never pick events marked read-only. The user confirms before anything is deleted.
 
 Email rules:
 - Write in the first person as the user, in plain text. Keep it as short as the request allows and match the tone they asked for.
@@ -48,6 +64,15 @@ Scheduling rules:
 const SCHEMA = {
   type: "object",
   properties: {
+    deletions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { id: { type: "string" } },
+        required: ["id"],
+        additionalProperties: false,
+      },
+    },
     emails: {
       type: "array",
       items: {
@@ -76,9 +101,13 @@ const SCHEMA = {
       },
     },
   },
-  required: ["proposals", "emails"],
+  required: ["proposals", "emails", "deletions"],
   additionalProperties: false,
 };
+
+// Short ids for the events sent to Claude, so it can name the ones to delete
+// without us trusting it to echo back long Google ids.
+const eventTag = (i: number) => `E${i + 1}`;
 
 function localLabel(iso: string, timeZone: string) {
   const d = new Date(iso);
@@ -100,11 +129,12 @@ function describeContext({
   const { timeZone } = range;
   const events = range.events.length
     ? range.events
-        .map((e) =>
-          e.allDay
-            ? `- ${e.start} (all day): ${e.title}`
-            : `- ${localLabel(e.start, timeZone)} to ${localLabel(e.end, timeZone)}: ${e.title}`
-        )
+        .map((e, i) => {
+          const tag = `${eventTag(i)}${e.canDelete ? "" : " read-only"}`;
+          return e.allDay
+            ? `- [${tag}] ${e.start} (all day): ${e.title}`
+            : `- [${tag}] ${localLabel(e.start, timeZone)} to ${localLabel(e.end, timeZone)}: ${e.title}`;
+        })
         .join("\n")
     : "(nothing scheduled)";
   const open = tasks.length
@@ -194,7 +224,7 @@ export async function planWithClaude({
   if (note) parts.push(`<note>\n${note}\n</note>`);
   if (request) parts.push(`<request>\n${request}\n</request>`);
   if (!note && !request) {
-    return { proposals: [], email: null };
+    return { proposals: [], email: null, deletions: [], skippedReadOnly: 0 };
   }
 
   // Beta endpoint for server-side fallbacks: if a safety classifier declines
@@ -231,14 +261,60 @@ export async function planWithClaude({
   } catch {
     throw new Error("The AI planner returned an unreadable answer.");
   }
-  const result = parsed as { proposals?: unknown; emails?: unknown };
-  if (!Array.isArray(result?.proposals) || !Array.isArray(result?.emails)) {
+  const result = parsed as {
+    proposals?: unknown;
+    emails?: unknown;
+    deletions?: unknown;
+  };
+  if (
+    !Array.isArray(result?.proposals) ||
+    !Array.isArray(result?.emails) ||
+    !Array.isArray(result?.deletions)
+  ) {
     throw new Error("The AI planner returned an unreadable answer.");
   }
+  const { deletions, skippedReadOnly } = resolveDeletions(
+    result.deletions,
+    range
+  );
   return {
     proposals: validate(result.proposals as RawProposal[], range, now),
     email: validateEmail(result.emails[0]),
+    deletions,
+    skippedReadOnly,
   };
+}
+
+const MAX_DELETIONS = 10;
+
+// Maps the ids Claude named back to real events. Unknown ids are dropped, and
+// so are events on read-only calendars (counted, so the UI can say why).
+function resolveDeletions(raw: unknown[], range: CalendarRange) {
+  const seen = new Set<number>();
+  const deletions: DeletionCandidate[] = [];
+  let skippedReadOnly = 0;
+  for (const item of raw) {
+    const id = (item as { id?: unknown })?.id;
+    const index =
+      typeof id === "string" ? Number(/^E(\d+)$/.exec(id)?.[1]) - 1 : NaN;
+    const e = range.events[index];
+    if (!e || seen.has(index)) continue;
+    seen.add(index);
+    if (!e.canDelete) {
+      skippedReadOnly++;
+      continue;
+    }
+    deletions.push({
+      calendarId: e.calendarId,
+      eventId: e.eventId,
+      title: e.title,
+      allDay: e.allDay,
+      start: e.start,
+      end: e.end,
+    });
+    if (deletions.length === MAX_DELETIONS) break;
+  }
+  return { deletions, skippedReadOnly };
 }
 
 // Also untrusted: keep only well-formed text, and only a recipient that

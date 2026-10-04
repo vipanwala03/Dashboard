@@ -7,8 +7,16 @@ import {
   GoogleReauthRequiredError,
 } from "@/lib/google/tokens";
 import { completeTask, createTask, listOpenTasks } from "@/lib/google/tasks";
-import { createCalendarEvent, listCalendarRange } from "@/lib/google/calendar";
-import { planWithClaude, type EmailDraft } from "@/lib/ai/planner";
+import {
+  createCalendarEvent,
+  deleteCalendarEvent,
+  listCalendarRange,
+} from "@/lib/google/calendar";
+import {
+  planWithClaude,
+  type DeletionCandidate,
+  type EmailDraft,
+} from "@/lib/ai/planner";
 import { EMAIL_PATTERN, sendEmail } from "@/lib/google/gmail";
 
 // Server Actions are reachable by direct POST, so each one re-checks the
@@ -87,6 +95,10 @@ export type PlannerState = {
   message?: string;
   // An email Claude drafted, waiting for the user to review and send.
   email?: EmailDraft;
+  // Events Claude wants removed, waiting for the user to confirm.
+  deletions?: DeletionCandidate[];
+  // Time zone to show those events' times in.
+  timeZone?: string;
 } | null;
 
 // Asks Claude for calendar-event proposals from what the user typed and/or a
@@ -127,18 +139,29 @@ export async function askPlannerAction(
       listCalendarRange(accessToken),
       listOpenTasks(accessToken),
     ]);
-    const { proposals, email } = await planWithClaude({
-      request,
-      note,
-      senderName: (user.user_metadata?.full_name as string | undefined) ?? "",
-      range,
-      tasks,
-    });
+    const { proposals, email, deletions, skippedReadOnly } =
+      await planWithClaude({
+        request,
+        note,
+        senderName: (user.user_metadata?.full_name as string | undefined) ?? "",
+        range,
+        tasks,
+      });
     // Emails only come from the ask box; "Plan this" on a note is scheduling.
     if (email && !noteId) return { email };
+    if (deletions.length > 0 && !noteId) {
+      return { deletions, timeZone: range.timeZone };
+    }
+    if (skippedReadOnly > 0 && !noteId) {
+      return {
+        error:
+          "Those events are on a read-only calendar, so they can't be deleted here.",
+      };
+    }
     if (proposals.length === 0) {
       return {
-        message: "Nothing to schedule from that — or no free slot fit.",
+        message:
+          "I couldn't find anything to schedule, send or delete from that. Try being more specific.",
       };
     }
 
@@ -263,5 +286,54 @@ export async function sendEmailAction(
       };
     }
     return { error: message || "Couldn't send the email." };
+  }
+}
+
+export type DeleteEventsState = { error?: string; deleted?: number } | null;
+
+// Deletes the events the user confirmed. Each `event` field is a JSON
+// [calendarId, eventId] pair. The calls use the user's own Google token, so
+// they can only ever touch their own calendars.
+export async function deleteEventsAction(
+  _prev: DeleteEventsState,
+  formData: FormData
+): Promise<DeleteEventsState> {
+  const refs: [string, string][] = [];
+  for (const value of formData.getAll("event")) {
+    try {
+      const pair = JSON.parse(String(value));
+      if (
+        Array.isArray(pair) &&
+        typeof pair[0] === "string" &&
+        typeof pair[1] === "string" &&
+        pair[0] &&
+        pair[1] &&
+        refs.length < 10
+      ) {
+        refs.push([pair[0], pair[1]]);
+      }
+    } catch {
+      // Ignore malformed entries.
+    }
+  }
+  if (refs.length === 0) return { error: "Nothing to delete." };
+
+  try {
+    const accessToken = await googleTokenForCurrentUser();
+    for (const [calendarId, eventId] of refs) {
+      await deleteCalendarEvent(accessToken, calendarId, eventId);
+    }
+    revalidatePath("/dashboard");
+    return { deleted: refs.length };
+  } catch (err) {
+    console.error("Delete events failed:", err);
+    // Some may already be gone; refresh so the page shows what's left.
+    revalidatePath("/dashboard");
+    if (err instanceof GoogleReauthRequiredError) {
+      return { error: "Google access needs to be reconnected." };
+    }
+    return {
+      error: err instanceof Error ? err.message : "Couldn't delete the event.",
+    };
   }
 }

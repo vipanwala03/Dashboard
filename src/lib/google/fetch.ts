@@ -32,5 +32,7 @@ export async function googleFetch<T>(
     );
   }
 
+  // DELETE (and similar) answer 204 with no body.
+  if (res.status === 204) return undefined as T;
   return res.json();
 }

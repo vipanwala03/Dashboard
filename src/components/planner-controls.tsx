@@ -2,8 +2,12 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { askPlannerAction, sendEmailAction } from "@/app/dashboard/actions";
-import type { EmailDraft } from "@/lib/ai/planner";
+import {
+  askPlannerAction,
+  deleteEventsAction,
+  sendEmailAction,
+} from "@/app/dashboard/actions";
+import type { DeletionCandidate, EmailDraft } from "@/lib/ai/planner";
 import { appendPhrase, useDictation } from "@/lib/use-dictation";
 import { fieldClass, MicButton, primaryButtonColors } from "./ui";
 
@@ -92,6 +96,13 @@ export function PlannerForm() {
         )}
         <PlannerNotice state={state} />
       </form>
+      {state?.deletions && (
+        <DeleteConfirm
+          key={state.deletions.map((d) => d.eventId).join("|")}
+          events={state.deletions}
+          timeZone={state.timeZone ?? "UTC"}
+        />
+      )}
       {state?.email && (
         // Keyed on the draft so a new request starts a fresh editable form.
         <EmailPreview
@@ -160,6 +171,91 @@ function EmailPreview({ draft }: { draft: EmailDraft }) {
           className="h-9 rounded-full border border-field px-3.5 text-[13px] text-ink-dim transition-colors hover:bg-raised hover:text-ink"
         >
           Discard
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// "Delete these events?" step for an AI request to remove events. Nothing is
+// deleted until Delete is pressed.
+function DeleteConfirm({
+  events,
+  timeZone,
+}: {
+  events: DeletionCandidate[];
+  timeZone: string;
+}) {
+  const [state, formAction, pending] = useActionState(deleteEventsAction, null);
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+
+  if (state?.deleted) {
+    return (
+      <p className="rounded-xl border border-accent-line bg-accent/5 p-3 text-sm text-ink-soft">
+        Deleted {state.deleted} {state.deleted === 1 ? "event" : "events"}.
+      </p>
+    );
+  }
+
+  const day = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return (
+    <form
+      action={formAction}
+      className="flex flex-col gap-2.5 rounded-xl border border-dashed border-danger-ink/50 bg-danger-ink/5 p-3.5"
+    >
+      <p className="text-xs font-medium tracking-wider text-danger-ink uppercase">
+        Delete{" "}
+        {events.length === 1 ? "this event" : `these ${events.length} events`}?
+      </p>
+      <ul className="flex flex-col gap-1.5">
+        {events.map((e) => (
+          <li key={`${e.calendarId}:${e.eventId}`} className="text-sm">
+            <input
+              type="hidden"
+              name="event"
+              value={JSON.stringify([e.calendarId, e.eventId])}
+            />
+            <span className="font-semibold text-ink-strong">{e.title}</span>
+            <span className="block font-mono text-xs text-ink-muted">
+              {day.format(
+                new Date(
+                  e.start.length === 10 ? `${e.start}T12:00:00Z` : e.start
+                )
+              )}
+              {!e.allDay &&
+                ` · ${time.format(new Date(e.start))} – ${time.format(new Date(e.end))}`}
+              {e.allDay && " · all day"}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {state?.error && <p className="text-sm text-danger-ink">{state.error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={pending}
+          className="h-9 rounded-full bg-danger-ink px-3.5 text-[13px] font-semibold text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-60"
+        >
+          {pending ? "Deleting…" : "Delete"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="h-9 rounded-full border border-field px-3.5 text-[13px] text-ink-dim transition-colors hover:bg-raised hover:text-ink"
+        >
+          Cancel
         </button>
       </div>
     </form>

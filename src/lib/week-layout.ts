@@ -23,6 +23,10 @@ export type PositionedEvent = {
   href?: string;
   // An unaccepted AI suggestion: drawn dashed, not on Google Calendar yet.
   suggested?: boolean;
+  // For deleting it from Google; canDelete is false on read-only calendars.
+  calendarId: string;
+  eventId: string;
+  canDelete: boolean;
   // Minutes since local midnight, clipped to this day.
   startMin: number;
   endMin: number;
@@ -112,6 +116,9 @@ export function buildWeekLayout(
       end: s.end_at,
       calendarName: "Suggested",
       color: "#22d3ee",
+      calendarId: "",
+      eventId: "",
+      canDelete: false,
       suggested: true,
     })),
   ];
@@ -170,6 +177,9 @@ export function buildWeekLayout(
         color: e.color,
         href: e.htmlLink,
         suggested: e.suggested,
+        calendarId: e.calendarId,
+        eventId: e.eventId,
+        canDelete: e.canDelete,
         startMin,
         endMin,
       });
