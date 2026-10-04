@@ -25,7 +25,8 @@ type GoogleTask = {
 const LIST_URL = "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks";
 
 // Fetches the incomplete tasks on the default list, with subtasks nested
-// under their parent, in the same order the Google Tasks app shows them.
+// under their parent. Top-level tasks are sorted by due date (soonest —
+// including overdue — first); undated ones follow in Google Tasks' order.
 export async function listOpenTasks(accessToken: string): Promise<Task[]> {
   const params = new URLSearchParams({
     showCompleted: "false",
@@ -59,7 +60,10 @@ export async function listOpenTasks(accessToken: string): Promise<Task[]> {
     // Google Tasks hides those too.
     if (t.parent) byId.get(t.parent)?.subtasks.push(toTask(t));
   }
-  return topLevel;
+  // Array.prototype.sort is stable, so equal/undated tasks keep their order.
+  return topLevel.sort((a, b) =>
+    a.due && b.due ? a.due.localeCompare(b.due) : a.due ? -1 : b.due ? 1 : 0
+  );
 }
 
 // `due` is YYYY-MM-DD.

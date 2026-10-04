@@ -54,8 +54,11 @@ from an earlier Cowork session) — the roadmap status below is the living summa
 - [x] Phase 5 — Quick notes + Web Speech API voice input. `src/components/note-composer.tsx`
       (client; Dictate button hidden where the browser lacks SpeechRecognition, e.g. Firefox)
       saves through `addNoteAction`; `src/lib/notes.ts` lists the 20 most recent.
-- [ ] Phase 6 — Combined dashboard home screen (next up)
-- [ ] Phase 7 — AI suggestions (Claude API reads a note + calendar/tasks context, proposes
+- [x] Phase 6 — Combined dashboard home screen: greeting, "At a glance" tiles
+      (`src/components/at-a-glance.tsx`), then This week | To-do | Notes columns (stacked
+      on phones). Calendar now merges every calendar switched on in Google Calendar over the
+      next 7 days; tasks sort by due date.
+- [ ] Phase 7 — AI suggestions (next up) (Claude API reads a note + calendar/tasks context, proposes
       a next step)
 - [ ] Phase 8 — PWA / installable
 - [ ] Phase 9 (optional) — native App Store wrap via Capacitor
