@@ -1,4 +1,4 @@
-import { GoogleReauthRequiredError } from "./tokens";
+import { googleFetch } from "./fetch";
 
 export type CalendarEvent = {
   id: string;
@@ -44,29 +44,11 @@ export async function listUpcomingEvents(
     maxResults: "250",
   });
 
-  const res = await fetch(
+  const data = await googleFetch<{ timeZone: string; items?: GoogleEvent[] }>(
+    "Google Calendar",
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: "no-store",
-    }
+    accessToken
   );
-
-  if (res.status === 401) {
-    throw new GoogleReauthRequiredError(
-      "Google Calendar rejected the access token."
-    );
-  }
-  if (!res.ok) {
-    // 403s are usually "Calendar API not enabled" or a missing scope —
-    // Google's message says which, so pass it through.
-    const body = await res.json().catch(() => ({}));
-    throw new Error(
-      `Google Calendar request failed (${res.status}): ${body.error?.message ?? "unknown error"}`
-    );
-  }
-
-  const data: { timeZone: string; items?: GoogleEvent[] } = await res.json();
 
   return {
     timeZone: data.timeZone,

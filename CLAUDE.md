@@ -47,8 +47,11 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       token (refreshing via Google's token endpoint when expired), `src/lib/google/calendar.ts`
       fetches the primary calendar's next 14 days, `/dashboard` renders them grouped by day in
       the calendar's own time zone (Vercel servers run in UTC).
-- [ ] Phase 4 — Google Tasks to-do list (next up; reuse `getGoogleAccessToken` from Phase 3)
-- [ ] Phase 5 — Quick notes + Web Speech API voice input, saved to the `notes` table
+- [x] Phase 4 — Google Tasks to-do list. `src/lib/google/tasks.ts` lists open tasks on the
+      default list (subtasks nested) and adds/completes them via Server Actions in
+      `src/app/dashboard/actions.ts`. All Google REST calls go through
+      `src/lib/google/fetch.ts` (401 → `GoogleReauthRequiredError` → "Reconnect Google").
+- [ ] Phase 5 — Quick notes + Web Speech API voice input, saved to the `notes` table (next up)
 - [ ] Phase 6 — Combined dashboard home screen
 - [ ] Phase 7 — AI suggestions (Claude API reads a note + calendar/tasks context, proposes
       a next step)

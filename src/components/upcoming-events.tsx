@@ -1,14 +1,5 @@
 import type { CalendarEvent, UpcomingEvents } from "@/lib/google/calendar";
-
-// YYYY-MM-DD for an instant, as seen in the calendar's time zone.
-function dayKey(date: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
+import { dayKey, formatDayKey } from "@/lib/dates";
 
 function eventDayKey(event: CalendarEvent, timeZone: string) {
   return event.allDay ? event.start : dayKey(new Date(event.start), timeZone);
@@ -17,13 +8,7 @@ function eventDayKey(event: CalendarEvent, timeZone: string) {
 function dayLabel(key: string, todayKey: string, tomorrowKey: string) {
   if (key === todayKey) return "Today";
   if (key === tomorrowKey) return "Tomorrow";
-  // Noon UTC keeps the date stable no matter how it's formatted.
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(`${key}T12:00:00Z`));
+  return formatDayKey(key);
 }
 
 function timeRange(event: CalendarEvent, timeZone: string) {
