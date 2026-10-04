@@ -4,19 +4,22 @@ import { SignInButton } from "@/components/sign-in-button";
 import { SignOutButton } from "@/components/sign-out-button";
 import { UpcomingEventsList } from "@/components/upcoming-events";
 import { TaskList } from "@/components/task-list";
+import { NoteComposer } from "@/components/note-composer";
+import { NoteList } from "@/components/note-list";
 import {
   getGoogleAccessToken,
   GoogleReauthRequiredError,
 } from "@/lib/google/tokens";
 import { listUpcomingEvents } from "@/lib/google/calendar";
 import { listOpenTasks } from "@/lib/google/tasks";
+import { listRecentNotes } from "@/lib/notes";
 
 type Result<T> =
   | { status: "ok"; data: T }
   | { status: "reauth" }
   | { status: "error"; message: string };
 
-// Turns a failed Google call into something the page can render, so one
+// Turns a failed fetch into something the page can render, so one
 // broken section (say, Tasks API disabled) doesn't take down the others.
 async function settle<T>(label: string, work: () => Promise<T>): Promise<Result<T>> {
   try {
@@ -72,7 +75,7 @@ export default async function DashboardPage() {
   const token = settle("Google token", () =>
     getGoogleAccessToken(supabase, user.id)
   );
-  const [calendar, tasks] = await Promise.all([
+  const [calendar, tasks, notes] = await Promise.all([
     token.then((t) =>
       t.status === "ok"
         ? settle("Calendar fetch", () => listUpcomingEvents(t.data))
@@ -81,10 +84,11 @@ export default async function DashboardPage() {
     token.then((t) =>
       t.status === "ok" ? settle("Tasks fetch", () => listOpenTasks(t.data)) : t
     ),
+    settle("Notes fetch", () => listRecentNotes(supabase)),
   ]);
 
-  // Tasks only store a date; "today" for overdue checks follows the
-  // calendar's time zone when we have it.
+  // Tasks only store a date, and notes need a zone to show their times in;
+  // both follow the calendar's time zone when we have it.
   const timeZone = calendar.status === "ok" ? calendar.data.timeZone : "UTC";
 
   return (
@@ -99,6 +103,18 @@ export default async function DashboardPage() {
           </p>
           <SignOutButton />
         </header>
+
+        <section className="flex flex-col gap-4">
+          <h2 className="text-2xl font-semibold text-black dark:text-zinc-50">
+            Notes
+          </h2>
+          <NoteComposer />
+          {notes.status === "ok" ? (
+            <NoteList notes={notes.data} timeZone={timeZone} />
+          ) : (
+            <SectionProblem result={notes} what="notes" />
+          )}
+        </section>
 
         <section className="flex flex-col gap-4">
           <h2 className="text-2xl font-semibold text-black dark:text-zinc-50">

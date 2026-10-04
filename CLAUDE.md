@@ -51,8 +51,10 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       default list (subtasks nested) and adds/completes them via Server Actions in
       `src/app/dashboard/actions.ts`. All Google REST calls go through
       `src/lib/google/fetch.ts` (401 → `GoogleReauthRequiredError` → "Reconnect Google").
-- [ ] Phase 5 — Quick notes + Web Speech API voice input, saved to the `notes` table (next up)
-- [ ] Phase 6 — Combined dashboard home screen
+- [x] Phase 5 — Quick notes + Web Speech API voice input. `src/components/note-composer.tsx`
+      (client; Dictate button hidden where the browser lacks SpeechRecognition, e.g. Firefox)
+      saves through `addNoteAction`; `src/lib/notes.ts` lists the 20 most recent.
+- [ ] Phase 6 — Combined dashboard home screen (next up)
 - [ ] Phase 7 — AI suggestions (Claude API reads a note + calendar/tasks context, proposes
       a next step)
 - [ ] Phase 8 — PWA / installable
@@ -60,8 +62,10 @@ from an earlier Cowork session) — the roadmap status below is the living summa
 
 ## Database
 
-- `notes`, `suggestions` — RLS enabled, no policies yet beyond lockdown; add user-scoped
-  policies when Phase 5/7 need real reads/writes.
+- `notes` — `user_id` defaults to `auth.uid()` (so inserts don't send it); RLS policies
+  allow the owner to select/insert/delete. `source` is checked to be `text` or `voice`.
+- `suggestions` — RLS enabled, no policies yet beyond lockdown; add user-scoped policies
+  when Phase 7 needs real reads/writes (it has no `user_id`; scope via `note_id` → `notes`).
 - `google_tokens` — one row per user, RLS-scoped to `auth.uid() = user_id`, holds Google's
   `access_token` / `refresh_token` / `expires_at`.
 
