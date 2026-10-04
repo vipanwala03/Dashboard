@@ -8,6 +8,8 @@ const GOOGLE_SCOPES = [
   "profile",
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/tasks",
+  // Send-only: lets the AI planner send emails you've approved. Can't read mail.
+  "https://www.googleapis.com/auth/gmail.send",
 ].join(" ");
 
 export function SignInButton({

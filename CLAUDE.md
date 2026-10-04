@@ -78,6 +78,13 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       event on the primary Google calendar (`createCalendarEvent`); "Dismiss" hides it.
       Suggestions never touch Google until accepted. Tasks stay in Google Tasks (they only
       hold due dates), so a scheduled task becomes a Calendar event.
+      Email (same ask box): when the request is to write/send an email, the same Claude
+      call returns a draft instead of calendar proposals. The panel shows an editable
+      To/Subject/Message preview; only "Send email" (`sendEmailAction` →
+      `src/lib/google/gmail.ts`, scope `gmail.send`, send-only) sends it, and the recipient
+      must be typed/dictated by the user — Claude never guesses addresses. Needs the Gmail
+      API enabled in Google Cloud, the scope on the OAuth consent screen, and a fresh
+      sign-in to grant it.
 - [ ] Phase 8 — PWA / installable
 - [ ] Phase 9 (optional) — native App Store wrap via Capacitor
 

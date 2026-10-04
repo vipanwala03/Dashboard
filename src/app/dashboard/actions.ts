@@ -8,7 +8,8 @@ import {
 } from "@/lib/google/tokens";
 import { completeTask, createTask, listOpenTasks } from "@/lib/google/tasks";
 import { createCalendarEvent, listCalendarRange } from "@/lib/google/calendar";
-import { planWithClaude } from "@/lib/ai/planner";
+import { planWithClaude, type EmailDraft } from "@/lib/ai/planner";
+import { EMAIL_PATTERN, sendEmail } from "@/lib/google/gmail";
 
 // Server Actions are reachable by direct POST, so each one re-checks the
 // session rather than trusting that the caller came from /dashboard.
@@ -84,6 +85,8 @@ export async function deleteNoteAction(formData: FormData) {
 export type PlannerState = {
   error?: string;
   message?: string;
+  // An email Claude drafted, waiting for the user to review and send.
+  email?: EmailDraft;
 } | null;
 
 // Asks Claude for calendar-event proposals from what the user typed and/or a
@@ -124,7 +127,15 @@ export async function askPlannerAction(
       listCalendarRange(accessToken),
       listOpenTasks(accessToken),
     ]);
-    const proposals = await planWithClaude({ request, note, range, tasks });
+    const { proposals, email } = await planWithClaude({
+      request,
+      note,
+      senderName: (user.user_metadata?.full_name as string | undefined) ?? "",
+      range,
+      tasks,
+    });
+    // Emails only come from the ask box; "Plan this" on a note is scheduling.
+    if (email && !noteId) return { email };
     if (proposals.length === 0) {
       return {
         message: "Nothing to schedule from that — or no free slot fit.",
@@ -209,4 +220,48 @@ export async function dismissSuggestionAction(formData: FormData) {
     throw new Error(`Couldn't dismiss suggestion: ${error.message}`);
   }
   revalidatePath("/dashboard");
+}
+
+export type SendEmailState = { error?: string; sentTo?: string } | null;
+
+// Sends exactly what the user approved in the preview form — nothing the AI
+// produced goes out without passing through that form first.
+export async function sendEmailAction(
+  _prev: SendEmailState,
+  formData: FormData
+): Promise<SendEmailState> {
+  const to = String(formData.get("to") ?? "").trim();
+  const subject = String(formData.get("subject") ?? "")
+    .replace(/[\r\n]+/g, " ")
+    .trim();
+  const body = String(formData.get("body") ?? "").trim();
+
+  if (!EMAIL_PATTERN.test(to)) {
+    return { error: "Enter one valid email address in To." };
+  }
+  if (!subject || subject.length > 200) {
+    return { error: "Add a subject (200 characters at most)." };
+  }
+  if (!body || body.length > 10000) {
+    return { error: "Add a message (10,000 characters at most)." };
+  }
+
+  try {
+    const accessToken = await googleTokenForCurrentUser();
+    await sendEmail(accessToken, { to, subject, body });
+    return { sentTo: to };
+  } catch (err) {
+    console.error("Send email failed:", err);
+    if (err instanceof GoogleReauthRequiredError) {
+      return { error: "Google access needs to be reconnected." };
+    }
+    const message = err instanceof Error ? err.message : "";
+    if (/scope|permission|insufficient/i.test(message)) {
+      return {
+        error:
+          "Gmail sending isn't allowed yet. Sign out and back in to approve it.",
+      };
+    }
+    return { error: message || "Couldn't send the email." };
+  }
 }

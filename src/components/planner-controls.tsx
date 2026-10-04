@@ -2,7 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { askPlannerAction } from "@/app/dashboard/actions";
+import { askPlannerAction, sendEmailAction } from "@/app/dashboard/actions";
+import type { EmailDraft } from "@/lib/ai/planner";
 import { appendPhrase, useDictation } from "@/lib/use-dictation";
 import { fieldClass, MicButton, primaryButtonColors } from "./ui";
 
@@ -91,7 +92,90 @@ export function PlannerForm() {
         )}
         <PlannerNotice state={state} />
       </form>
+      {state?.email && (
+        // Keyed on the draft so a new request starts a fresh editable form.
+        <EmailPreview
+          key={`${state.email.to}|${state.email.subject}|${state.email.body}`}
+          draft={state.email}
+        />
+      )}
     </div>
+  );
+}
+
+// Review step for an AI-drafted email: everything is editable, and nothing
+// is sent until Send is pressed.
+function EmailPreview({ draft }: { draft: EmailDraft }) {
+  const [state, formAction] = useActionState(sendEmailAction, null);
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+
+  if (state?.sentTo) {
+    return (
+      <p className="rounded-xl border border-accent-line bg-accent/5 p-3 text-sm text-ink-soft">
+        Sent to {state.sentTo}.
+      </p>
+    );
+  }
+
+  return (
+    <form
+      action={formAction}
+      className="flex flex-col gap-2 rounded-xl border border-dashed border-[#1f4a66] bg-accent/5 p-3.5"
+    >
+      <p className="text-xs font-medium tracking-wider text-ink-muted uppercase">
+        Draft email — review before sending
+      </p>
+      <input
+        name="to"
+        type="email"
+        required
+        defaultValue={draft.to}
+        placeholder="To (email address)"
+        aria-label="To"
+        className={`${fieldClass} h-10 text-sm`}
+      />
+      <input
+        name="subject"
+        required
+        defaultValue={draft.subject}
+        placeholder="Subject"
+        aria-label="Subject"
+        className={`${fieldClass} h-10 text-sm`}
+      />
+      <textarea
+        name="body"
+        required
+        defaultValue={draft.body}
+        rows={7}
+        aria-label="Message"
+        className={`${fieldClass} py-2.5 text-sm leading-relaxed`}
+      />
+      {state?.error && <p className="text-sm text-danger-ink">{state.error}</p>}
+      <div className="flex gap-2">
+        <SendButton />
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="h-9 rounded-full border border-field px-3.5 text-[13px] text-ink-dim transition-colors hover:bg-raised hover:text-ink"
+        >
+          Discard
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function SendButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className={`${primaryButtonColors} h-9 px-3.5 text-[13px]`}
+    >
+      {pending ? "Sending…" : "Send email"}
+    </button>
   );
 }
 

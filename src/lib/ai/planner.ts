@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { CalendarRange } from "@/lib/google/calendar";
 import type { Task } from "@/lib/google/tasks";
 import { dayKey, minutesInZone, zonedTimeToDate } from "@/lib/dates";
+import { EMAIL_PATTERN } from "@/lib/google/gmail";
 
 export type Proposal = {
   title: string;
@@ -11,13 +12,31 @@ export type Proposal = {
   reason: string;
 };
 
+// An email Claude drafted. Never sent from here — the user reviews and edits
+// it first. `to` is empty when the request didn't include an address.
+export type EmailDraft = { to: string; subject: string; body: string };
+
+export type PlanResult = {
+  proposals: Proposal[];
+  email: EmailDraft | null;
+};
+
 const MODEL = "claude-sonnet-5-5";
 const MAX_PROPOSALS = 5;
 const MAX_DURATION_MIN = 8 * 60;
 
-const SYSTEM_PROMPT = `You are the scheduling assistant inside a personal dashboard. The user has a Google Calendar, a Google Tasks list, and quick notes. Propose concrete calendar events that turn what they asked for (or what a note says) into time on their calendar.
+const SYSTEM_PROMPT = `You are the assistant inside a personal dashboard. The user has a Google Calendar, a Google Tasks list, and quick notes. You do one of two jobs, depending on the request:
 
-Rules:
+1. Scheduling (the default): propose concrete calendar events that turn what they asked for (or what a note says) into time on their calendar. Leave "emails" empty.
+2. Email: if the user asks you to write, draft or send an email or message to someone, write ONE email in "emails" and leave "proposals" empty. The user reviews it before anything is sent.
+
+Email rules:
+- Write in the first person as the user, in plain text. Keep it as short as the request allows and match the tone they asked for.
+- "to" is the email address if the request contains one, otherwise an empty string. Never guess or invent an address.
+- Use only facts from the request. No placeholders like [Name] or [time]; if a detail is missing, leave it out.
+- Greet the recipient by name only if the request names them. End with a short sign-off using the sender's name given below.
+
+Scheduling rules:
 - Write start and end as wall-clock times in the user's time zone, format YYYY-MM-DDTHH:mm, with no offset.
 - If the request or note names a time, use it. Otherwise pick a sensible free slot.
 - Never overlap an existing event, never start before the current time, and stay within the next 7 days.
@@ -29,6 +48,19 @@ Rules:
 const SCHEMA = {
   type: "object",
   properties: {
+    emails: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          to: { type: "string" },
+          subject: { type: "string" },
+          body: { type: "string" },
+        },
+        required: ["to", "subject", "body"],
+        additionalProperties: false,
+      },
+    },
     proposals: {
       type: "array",
       items: {
@@ -44,7 +76,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ["proposals"],
+  required: ["proposals", "emails"],
   additionalProperties: false,
 };
 
@@ -142,21 +174,28 @@ function validate(
 export async function planWithClaude({
   request,
   note,
+  senderName,
   range,
   tasks,
 }: {
   request: string;
   note?: string;
+  senderName?: string;
   range: CalendarRange;
   tasks: Task[];
-}): Promise<Proposal[]> {
+}): Promise<PlanResult> {
   const now = new Date();
   const client = new Anthropic();
 
-  const parts = [describeContext({ range, tasks, now })];
+  const parts = [
+    `Sender's name: ${senderName || "(unknown — sign off without a name)"}`,
+    describeContext({ range, tasks, now }),
+  ];
   if (note) parts.push(`<note>\n${note}\n</note>`);
   if (request) parts.push(`<request>\n${request}\n</request>`);
-  if (!note && !request) return [];
+  if (!note && !request) {
+    return { proposals: [], email: null };
+  }
 
   // Beta endpoint for server-side fallbacks: if a safety classifier declines
   // the request, the API retries it on another model within the same call.
@@ -192,9 +231,30 @@ export async function planWithClaude({
   } catch {
     throw new Error("The AI planner returned an unreadable answer.");
   }
-  const proposals = (parsed as { proposals?: unknown })?.proposals;
-  if (!Array.isArray(proposals)) {
+  const result = parsed as { proposals?: unknown; emails?: unknown };
+  if (!Array.isArray(result?.proposals) || !Array.isArray(result?.emails)) {
     throw new Error("The AI planner returned an unreadable answer.");
   }
-  return validate(proposals as RawProposal[], range, now);
+  return {
+    proposals: validate(result.proposals as RawProposal[], range, now),
+    email: validateEmail(result.emails[0]),
+  };
+}
+
+// Also untrusted: keep only well-formed text, and only a recipient that
+// looks like a single email address (otherwise the preview asks for one).
+function validateEmail(raw: unknown): EmailDraft | null {
+  if (!raw || typeof raw !== "object") return null;
+  const { to, subject, body } = raw as Record<string, unknown>;
+  if (typeof subject !== "string" || typeof body !== "string") return null;
+  if (!body.trim()) return null;
+  const address = typeof to === "string" ? to.trim() : "";
+  return {
+    to: EMAIL_PATTERN.test(address) ? address : "",
+    subject: subject
+      .replace(/[\r\n]+/g, " ")
+      .trim()
+      .slice(0, 200),
+    body: body.trim().slice(0, 10000),
+  };
 }
