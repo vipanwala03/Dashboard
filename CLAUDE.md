@@ -43,11 +43,11 @@ from an earlier Cowork session) — the roadmap status below is the living summa
 - [x] Phase 0 — accounts/tools ready
 - [x] Phase 1 — scaffolded, deployed, auto-deploy wired up
 - [x] Phase 2 — Supabase DB + Google sign-in via Supabase Auth (verified working end to end)
-- [ ] Phase 3 — Calendar integration (next up). Scopes are already granted and tokens are
-      already stored in `google_tokens`; what's left is fetching events with
-      `google_tokens.access_token` (refreshing via `google_tokens.refresh_token` when it's
-      expired) and rendering the next 7-14 days.
-- [ ] Phase 4 — Google Tasks to-do list (same token-refresh pattern as Phase 3)
+- [x] Phase 3 — Calendar integration. `src/lib/google/tokens.ts` returns a valid access
+      token (refreshing via Google's token endpoint when expired), `src/lib/google/calendar.ts`
+      fetches the primary calendar's next 14 days, `/dashboard` renders them grouped by day in
+      the calendar's own time zone (Vercel servers run in UTC).
+- [ ] Phase 4 — Google Tasks to-do list (next up; reuse `getGoogleAccessToken` from Phase 3)
 - [ ] Phase 5 — Quick notes + Web Speech API voice input, saved to the `notes` table
 - [ ] Phase 6 — Combined dashboard home screen
 - [ ] Phase 7 — AI suggestions (Claude API reads a note + calendar/tasks context, proposes
@@ -68,6 +68,11 @@ from an earlier Cowork session) — the roadmap status below is the living summa
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — pull both from the Supabase MCP server
   (`get_project_url` / `get_publishable_keys` with project ref `tmiajpdhedymuwfwnbrv`) once
   it's connected, or from the Supabase dashboard under Project Settings → API.
+- It also needs `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (the same OAuth client Supabase's
+  Google provider uses) to refresh Google access tokens. Both are set in Vercel too; the
+  secret is a "sensitive" var there, so it can't be read back — get it from Google Cloud
+  Console → Credentials if `.env.local` is lost.
+- Signing in on the Vercel site doesn't sign you in on `localhost` — sign in again locally.
 - Run `npm run build` once after deleting `.next` before trusting a bare `tsc --noEmit` —
   Next 16 regenerates ambient types (`LayoutProps` etc.) during build, so a fresh `tsc`
   run right after wiping `.next` throws a false `Cannot find name 'LayoutProps'`.

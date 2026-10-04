@@ -10,7 +10,11 @@ const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/tasks",
 ].join(" ");
 
-export function SignInButton() {
+export function SignInButton({
+  label = "Sign in with Google",
+}: {
+  label?: string;
+}) {
   const supabase = createClient();
 
   const handleSignIn = async () => {
@@ -35,7 +39,7 @@ export function SignInButton() {
       onClick={handleSignIn}
       className="flex h-12 items-center justify-center gap-2 rounded-full bg-foreground px-6 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
     >
-      Sign in with Google
+      {label}
     </button>
   );
 }
