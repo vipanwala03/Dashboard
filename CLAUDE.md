@@ -102,6 +102,11 @@ from an earlier Cowork session) — the roadmap status below is the living summa
   `title`, `start_at`, `end_at`, `reason`, `status` (`pending`/`accepted`/`dismissed`),
   optional `note_id` (the note it came from), `calendar_event_id` once accepted. Owner-only
   RLS for select/insert/update/delete.
+- `ai_usage` — one row per Claude call (`user_id`, `created_at`, `input_tokens`,
+  `output_tokens`); owner-only select/insert, no update/delete. Drives the daily cap
+  (`DAILY_LIMIT` = 50 requests per rolling 24 hours, checked in `askPlannerAction` before any
+  call) and the usage line in the AI tile (`src/lib/ai/usage.ts`; cost is an estimate at
+  Sonnet 5.5 list price, $2 / $10 per million input / output tokens).
 - `google_tokens` — one row per user, RLS-scoped to `auth.uid() = user_id`, holds Google's
   `access_token` / `refresh_token` / `expires_at`.
 

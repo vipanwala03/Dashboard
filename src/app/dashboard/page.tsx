@@ -18,6 +18,7 @@ import { listCalendarRange } from "@/lib/google/calendar";
 import { listOpenTasks } from "@/lib/google/tasks";
 import { listRecentNotes } from "@/lib/notes";
 import { listPendingSuggestions } from "@/lib/suggestions";
+import { getAiUsage } from "@/lib/ai/usage";
 import { dayKey, formatDayKey, minutesInZone } from "@/lib/dates";
 import { buildWeekLayout } from "@/lib/week-layout";
 
@@ -94,7 +95,7 @@ export default async function DashboardPage({
   const token = settle("Google token", () =>
     getGoogleAccessToken(supabase, user.id)
   );
-  const [calendar, tasks, notes, suggestions] = await Promise.all([
+  const [calendar, tasks, notes, suggestions, aiUsage] = await Promise.all([
     token.then((t) =>
       t.status === "ok"
         ? settle("Calendar fetch", () =>
@@ -107,6 +108,7 @@ export default async function DashboardPage({
     ),
     settle("Notes fetch", () => listRecentNotes(supabase)),
     settle("Suggestions fetch", () => listPendingSuggestions(supabase)),
+    settle("AI usage fetch", () => getAiUsage(supabase)),
   ]);
 
   // Tasks only store a date, and notes and the greeting need a zone to show
@@ -197,6 +199,7 @@ export default async function DashboardPage({
 
           <AiPlannerPanel
             suggestions={suggestions.status === "ok" ? suggestions.data : []}
+            usage={aiUsage.status === "ok" ? aiUsage.data : null}
             timeZone={timeZone}
           />
         </div>

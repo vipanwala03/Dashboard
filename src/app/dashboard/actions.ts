@@ -18,6 +18,7 @@ import {
   type EmailDraft,
 } from "@/lib/ai/planner";
 import { EMAIL_PATTERN, sendEmail } from "@/lib/google/gmail";
+import { DAILY_LIMIT, getAiUsage } from "@/lib/ai/usage";
 
 // Server Actions are reachable by direct POST, so each one re-checks the
 // session rather than trusting that the caller came from /dashboard.
@@ -121,6 +122,15 @@ export async function askPlannerAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
+  // Cap checked before any Claude call, since each one costs real money.
+  const usage = await getAiUsage(supabase).catch(() => null);
+  if (usage && usage.requestsLast24h >= DAILY_LIMIT) {
+    return {
+      error: `Daily AI limit reached (${DAILY_LIMIT} requests per 24 hours). Try again later.`,
+    };
+  }
+
+  let tokens: { inputTokens: number; outputTokens: number } | undefined;
   try {
     let note: string | undefined;
     if (noteId) {
@@ -144,6 +154,7 @@ export async function askPlannerAction(
         request,
         note,
         senderName: (user.user_metadata?.full_name as string | undefined) ?? "",
+      onUsage: (u) => (tokens = u),
         range,
         tasks,
       });
@@ -184,6 +195,17 @@ export async function askPlannerAction(
       return { error: "Google access needs to be reconnected." };
     }
     return { error: err instanceof Error ? err.message : "Planner failed." };
+  } finally {
+    // Log what the call used (even if the answer was unusable) so the cap and
+    // the usage counter stay accurate.
+    if (tokens) {
+      const { error } = await supabase.from("ai_usage").insert({
+        input_tokens: tokens.inputTokens,
+        output_tokens: tokens.outputTokens,
+      });
+      if (error) console.error("Couldn't log AI usage:", error.message);
+      revalidatePath("/dashboard");
+    }
   }
 }
 

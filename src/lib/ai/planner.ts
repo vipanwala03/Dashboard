@@ -205,12 +205,16 @@ export async function planWithClaude({
   request,
   note,
   senderName,
+  onUsage,
   range,
   tasks,
 }: {
   request: string;
   note?: string;
   senderName?: string;
+  // Called with the tokens a request used, as soon as the API answers, so
+  // callers can log spend even if the answer later turns out unusable.
+  onUsage?: (usage: { inputTokens: number; outputTokens: number }) => void;
   range: CalendarRange;
   tasks: Task[];
 }): Promise<PlanResult> {
@@ -240,6 +244,11 @@ export async function planWithClaude({
       format: { type: "json_schema", schema: SCHEMA },
     },
     messages: [{ role: "user", content: parts.join("\n\n") }],
+  });
+
+  onUsage?.({
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
   });
 
   if (response.stop_reason === "refusal") {

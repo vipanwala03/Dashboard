@@ -3,6 +3,7 @@ import {
   dismissSuggestionAction,
 } from "@/app/dashboard/actions";
 import type { Suggestion } from "@/lib/suggestions";
+import { DAILY_LIMIT, type AiUsage } from "@/lib/ai/usage";
 import { PendingButton, PlannerForm } from "./planner-controls";
 import { Panel, primaryButtonColors } from "./ui";
 
@@ -66,9 +67,11 @@ function SuggestionCard({
 
 export function AiPlannerPanel({
   suggestions,
+  usage,
   timeZone,
 }: {
   suggestions: Suggestion[];
+  usage: AiUsage | null;
   timeZone: string;
 }) {
   return (
@@ -116,6 +119,25 @@ export function AiPlannerPanel({
           appear here and as dashed blocks on the calendar until you add them.
         </p>
       )}
+      {usage && <UsageLine usage={usage} />}
     </Panel>
+  );
+}
+
+// Small footer: how much of the daily AI cap is used, and the month's
+// estimated spend (see usage.ts for how it's calculated).
+function UsageLine({ usage }: { usage: AiUsage }) {
+  const atLimit = usage.requestsLast24h >= DAILY_LIMIT;
+  const cost =
+    usage.costThisMonth < 0.01
+      ? "under 1¢"
+      : `$${usage.costThisMonth.toFixed(2)}`;
+  return (
+    <p
+      className={`mt-auto pt-1 text-xs ${atLimit ? "text-danger-ink" : "text-ink-muted"}`}
+    >
+      {usage.requestsLast24h} of {DAILY_LIMIT} AI requests used in the last 24
+      hours · about {cost} this month
+    </p>
   );
 }
