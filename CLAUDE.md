@@ -91,7 +91,7 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       `deleteCalendarEvent` (a recurring event deletes just that occurrence). Events on
       read-only calendars (`accessRole` not owner/writer) can't be deleted. The AI only sees
       the next 7 days, and it never deletes without the confirm click.
-- [x] Phase 8 — PWA / installable (built; awaiting the user's on-iPhone test). `src/app/manifest.ts`
+- [x] Phase 8 — PWA / installable (verified working on the user's iPhone). `src/app/manifest.ts`
       (standalone, starts at `/dashboard`, navy theme), generated sparkle icons (`public/icon-192.png`,
       `public/icon-512.png`, `src/app/apple-icon.png`, `src/app/favicon.ico` — regenerate with a
       one-off `sharp` script if the design changes), iOS metadata in `layout.tsx`, and a tiny
@@ -101,7 +101,7 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       `src/proxy.ts` skips `manifest.webmanifest` and `sw.js`. iPhone gotchas: the installed app has
       its own login (sign in once inside it), and Web Speech dictation is unreliable in iOS
       home-screen apps — typing still works.
-- [ ] Phase 9 (optional) — native App Store wrap via Capacitor
+- [-] Phase 9 (optional) — native App Store wrap via Capacitor — decided against; the installed web app covers it
 
 ## Database
 
