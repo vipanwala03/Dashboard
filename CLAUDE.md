@@ -66,7 +66,7 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       12-hour window that follows the clock within the hours that have events. Tasks can be
       dictated (`src/lib/use-dictation.ts`, shared with notes). The AI planner panel is a
       disabled placeholder. Preview mockup: https://claude.ai/artifact/R37Lpm5jzuhCzhwQB4NFgz
-- [x] Phase 7 — AI suggestions (built; awaiting the user's signed-in checkpoint test).
+- [x] Phase 7 — AI suggestions (verified working on the live site and on the phone).
       On demand, not automatic: the AI planner panel's ask box (typed or dictated) and a
       "Plan this" link on each note call `askPlannerAction` (`src/app/dashboard/actions.ts`),
       which sends the request/note + next 7 days of events + open tasks to Claude
@@ -91,7 +91,16 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       `deleteCalendarEvent` (a recurring event deletes just that occurrence). Events on
       read-only calendars (`accessRole` not owner/writer) can't be deleted. The AI only sees
       the next 7 days, and it never deletes without the confirm click.
-- [ ] Phase 8 — PWA / installable
+- [x] Phase 8 — PWA / installable (built; awaiting the user's on-iPhone test). `src/app/manifest.ts`
+      (standalone, starts at `/dashboard`, navy theme), generated sparkle icons (`public/icon-192.png`,
+      `public/icon-512.png`, `src/app/apple-icon.png`, `src/app/favicon.ico` — regenerate with a
+      one-off `sharp` script if the design changes), iOS metadata in `layout.tsx`, and a tiny
+      service worker (`public/sw.js`, registered by `register-service-worker.tsx`, production only)
+      that caches ONLY the `/offline` page — no private data is ever cached. `install-hint.tsx`
+      shows Share → Add to Home Screen steps on iPhone (or an Install button on Chromium).
+      `src/proxy.ts` skips `manifest.webmanifest` and `sw.js`. iPhone gotchas: the installed app has
+      its own login (sign in once inside it), and Web Speech dictation is unreliable in iOS
+      home-screen apps — typing still works.
 - [ ] Phase 9 (optional) — native App Store wrap via Capacitor
 
 ## Database

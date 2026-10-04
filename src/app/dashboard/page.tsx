@@ -8,6 +8,7 @@ import { TaskComposer } from "@/components/task-composer";
 import { TaskList } from "@/components/task-list";
 import { AiPlannerPanel } from "@/components/ai-planner-panel";
 import { GlanceLine } from "@/components/glance-line";
+import { InstallHint } from "@/components/install-hint";
 import { WeekView } from "@/components/week-view";
 import { Panel } from "@/components/ui";
 import {
@@ -222,6 +223,8 @@ export default async function DashboardPage({
             <SectionProblem result={calendar} what="calendar" />
           </Panel>
         )}
+
+        <InstallHint />
       </div>
     </div>
   );
