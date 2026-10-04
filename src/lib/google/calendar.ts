@@ -1,5 +1,5 @@
 import { googleFetch } from "./fetch";
-import { dayKey } from "@/lib/dates";
+import { addDays, dayKey } from "@/lib/dates";
 
 export type CalendarEvent = {
   // Prefixed with the calendar id — event ids are only unique per calendar.
@@ -7,8 +7,8 @@ export type CalendarEvent = {
   title: string;
   htmlLink?: string;
   location?: string;
-  // All-day events only have a date (YYYY-MM-DD); timed events have a
-  // full ISO dateTime.
+  // All-day events only have dates (YYYY-MM-DD, end exclusive); timed
+  // events have full ISO dateTimes.
   allDay: boolean;
   start: string;
   end: string;
@@ -17,12 +17,17 @@ export type CalendarEvent = {
   color: string;
 };
 
-export type UpcomingEvents = {
+export type CalendarRange = {
   // The primary calendar's time zone — the server runs in UTC on Vercel, so
-  // grouping and formatting have to use this instead of the server's.
+  // day boundaries and times have to use this instead of the server's.
   timeZone: string;
-  // More than one calendar contributed events (so it's worth naming them).
-  multipleCalendars: boolean;
+  todayKey: string;
+  // First day shown (YYYY-MM-DD) and the days in range, in order.
+  startKey: string;
+  dayKeys: string[];
+  // Calendars that have events in range, for the legend.
+  calendars: { name: string; color: string }[];
+  // Sorted: by day, all-day events first, then by start time.
   events: CalendarEvent[];
 };
 
@@ -49,12 +54,12 @@ type GoogleEvent = {
 };
 
 // Fetches events from every calendar that's switched on in Google Calendar
-// (class schedules often live on their own calendar), from now through
-// `days` days out, merged into one list sorted by start.
-export async function listUpcomingEvents(
+// (class schedules often live on their own calendar) for `days` days
+// starting at `startKey` (default: today), merged into one sorted list.
+export async function listCalendarRange(
   accessToken: string,
-  days = 7
-): Promise<UpcomingEvents> {
+  { startKey, days = 7 }: { startKey?: string; days?: number } = {}
+): Promise<CalendarRange> {
   const list = await googleFetch<{ items?: GoogleCalendarListEntry[] }>(
     "Google Calendar",
     "https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader",
@@ -62,13 +67,21 @@ export async function listUpcomingEvents(
   );
   const calendars = (list.items ?? []).filter((c) => c.primary || c.selected);
   const timeZone =
-    calendars.find((c) => c.primary)?.timeZone ?? calendars[0]?.timeZone ?? "UTC";
+    calendars.find((c) => c.primary)?.timeZone ??
+    calendars[0]?.timeZone ??
+    "UTC";
 
-  const now = new Date();
+  const todayKey = dayKey(new Date(), timeZone);
+  const first = startKey ?? todayKey;
+  const dayKeys = Array.from({ length: days }, (_, i) => addDays(first, i));
+  const endKey = addDays(first, days);
+
+  // Day boundaries depend on the time zone, so over-fetch by 14 hours (the
+  // largest UTC offset) on each side and filter by local day below.
+  const pad = 14 * 60 * 60 * 1000;
   const params = new URLSearchParams({
-    // Filters on end time, so events already in progress are included.
-    timeMin: now.toISOString(),
-    timeMax: new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString(),
+    timeMin: new Date(new Date(`${first}T00:00:00Z`).getTime() - pad).toISOString(),
+    timeMax: new Date(new Date(`${endKey}T00:00:00Z`).getTime() + pad).toISOString(),
     // Expands recurring events into individual occurrences.
     singleEvents: "true",
     orderBy: "startTime",
@@ -90,44 +103,54 @@ export async function listUpcomingEvents(
 
   // An invite can show up on two of your calendars; keep the first copy.
   const seen = new Set<string>();
+  const legend = new Map<string, string>();
   const sortable: { event: CalendarEvent; day: string; time: number }[] = [];
-  let contributingCalendars = 0;
   for (const entries of perCalendar) {
-    if (entries.length > 0) contributingCalendars++;
     for (const { cal, e } of entries) {
       const start = (e.start.dateTime ?? e.start.date)!;
+      const end = (e.end.dateTime ?? e.end.date)!;
+      const allDay = !e.start.dateTime;
+      const startDay = allDay ? start : dayKey(new Date(start), timeZone);
+      const endDay = allDay ? end : dayKey(new Date(end), timeZone);
+      // Keep anything that overlaps the range in local days.
+      if (startDay >= endKey || (allDay ? endDay <= first : endDay < first)) {
+        continue;
+      }
+
       const dedupeKey = `${e.iCalUID}|${start}`;
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
 
-      const allDay = !e.start.dateTime;
-      const event: CalendarEvent = {
-        id: `${cal.id}:${e.id}`,
-        title: e.summary ?? "(No title)",
-        htmlLink: e.htmlLink,
-        location: e.location,
-        allDay,
-        start,
-        end: (e.end.dateTime ?? e.end.date)!,
-        calendarName: cal.summaryOverride ?? cal.summary,
-        color: cal.backgroundColor,
-      };
+      const calendarName = cal.summaryOverride ?? cal.summary;
+      legend.set(calendarName, cal.backgroundColor);
       sortable.push({
-        event,
-        day: allDay ? start : dayKey(new Date(start), timeZone),
+        event: {
+          id: `${cal.id}:${e.id}`,
+          title: e.summary ?? "(No title)",
+          htmlLink: e.htmlLink,
+          location: e.location,
+          allDay,
+          start,
+          end,
+          calendarName,
+          color: cal.backgroundColor,
+        },
+        day: startDay,
         time: allDay ? 0 : new Date(start).getTime(),
       });
     }
   }
 
-  // Day first, all-day events at the top of each day, then by start time.
   sortable.sort((a, b) =>
     a.day !== b.day ? a.day.localeCompare(b.day) : a.time - b.time
   );
 
   return {
     timeZone,
-    multipleCalendars: contributingCalendars > 1,
+    todayKey,
+    startKey: first,
+    dayKeys,
+    calendars: [...legend].map(([name, color]) => ({ name, color })),
     events: sortable.map((s) => s.event),
   };
 }

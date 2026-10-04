@@ -21,3 +21,23 @@ export function formatDayKey(
     day: "numeric",
   }).format(new Date(`${key}T12:00:00Z`));
 }
+
+// Shifts a YYYY-MM-DD key by whole days (calendar arithmetic, no time zone).
+export function addDays(key: string, days: number) {
+  const d = new Date(`${key}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// Minutes since midnight for an instant, as seen in the given time zone.
+export function minutesInZone(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type: string) =>
+    Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return get("hour") * 60 + get("minute");
+}

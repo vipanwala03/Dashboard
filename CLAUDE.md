@@ -58,7 +58,18 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       (`src/components/at-a-glance.tsx`), then This week | To-do | Notes columns (stacked
       on phones). Calendar now merges every calendar switched on in Google Calendar over the
       next 7 days; tasks sort by due date.
-- [ ] Phase 7 — AI suggestions (next up) (Claude API reads a note + calendar/tasks context, proposes
+- [x] Redesign (between Phases 6 and 7) — dark navy/cyan theme (tokens in
+      `src/app/globals.css`, shared pieces in `src/components/ui.tsx`, Geist via next/font).
+      Notes | To-do | AI planner panels above a Google-Calendar-style time grid
+      (`src/components/week-view.tsx`, layout math in `src/lib/week-layout.ts`): Day / 3 days /
+      Week (auto: 3 days on phones, week from `md`), `?start=YYYY-MM-DD` navigation, a
+      12-hour window that follows the clock within the hours that have events. Tasks can be
+      dictated (`src/lib/use-dictation.ts`, shared with notes). The AI planner panel is a
+      disabled placeholder. Preview mockup: https://claude.ai/artifact/R37Lpm5jzuhCzhwQB4NFgz
+- [ ] Phase 7 — AI suggestions (next up). Agreed scope beyond the original plan: the AI
+      schedules tasks/notes as calendar events (Google Tasks only stores due dates, so a
+      scheduled task becomes a Calendar event), suggesting a time unless one is given;
+      suggestions show as dashed "Suggested" blocks in the week view until accepted. (Claude API reads a note + calendar/tasks context, proposes
       a next step)
 - [ ] Phase 8 — PWA / installable
 - [ ] Phase 9 (optional) — native App Store wrap via Capacitor
@@ -83,6 +94,9 @@ from an earlier Cowork session) — the roadmap status below is the living summa
   secret is a "sensitive" var there, so it can't be read back — get it from Google Cloud
   Console → Credentials if `.env.local` is lost.
 - Signing in on the Vercel site doesn't sign you in on `localhost` — sign in again locally.
+- `~/Documents` is iCloud-synced; iCloud has created " 2" duplicate files inside
+  `node_modules`/`.next`, which breaks `tsc` (`Cannot find type definition file for 'node 2'`).
+  Fix: `rm -rf node_modules .next && npm ci`.
 - Run `npm run build` once after deleting `.next` before trusting a bare `tsc --noEmit` —
   Next 16 regenerates ambient types (`LayoutProps` etc.) during build, so a fresh `tsc`
   run right after wiping `.next` throws a false `Cannot find name 'LayoutProps'`.

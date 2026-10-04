@@ -13,11 +13,11 @@ export default async function Home() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 bg-zinc-50 p-16 text-center dark:bg-black">
-      <h1 className="text-3xl font-semibold text-black dark:text-zinc-50">
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center sm:p-16">
+      <h1 className="text-4xl font-semibold tracking-tight text-ink-strong">
         Dashboard
       </h1>
-      <p className="max-w-sm text-lg text-zinc-600 dark:text-zinc-400">
+      <p className="max-w-sm text-lg text-ink-muted">
         Sign in with your Google account to get started.
       </p>
       <SignInButton />

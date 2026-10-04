@@ -9,9 +9,7 @@ export function NoteList({
   timeZone: string;
 }) {
   if (notes.length === 0) {
-    return (
-      <p className="text-zinc-600 dark:text-zinc-400">No notes yet.</p>
-    );
+    return <p className="text-sm text-ink-muted">No notes yet.</p>;
   }
 
   const fmt = new Intl.DateTimeFormat("en-US", {
@@ -23,16 +21,15 @@ export function NoteList({
   });
 
   return (
-    <ul className="flex flex-col gap-2">
+    // Keeps the panel row from growing past its neighbours; older notes
+    // scroll inside it.
+    <ul className="-mr-2 flex max-h-72 flex-col gap-2 overflow-y-auto pr-2">
       {notes.map((note) => (
-        <li
-          key={note.id}
-          className="rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          <p className="whitespace-pre-wrap text-black dark:text-zinc-50">
+        <li key={note.id} className="rounded-[10px] bg-raised px-3 py-2.5">
+          <p className="text-sm leading-relaxed whitespace-pre-wrap text-ink-soft">
             {note.content}
           </p>
-          <div className="mt-2 flex items-center justify-between gap-4 text-sm text-zinc-500">
+          <div className="mt-1.5 flex items-center justify-between gap-4 text-xs text-ink-muted">
             <span>
               {fmt.format(new Date(note.created_at))}
               {note.source === "voice" && " · dictated"}
@@ -41,7 +38,7 @@ export function NoteList({
               <input type="hidden" name="noteId" value={note.id} />
               <button
                 type="submit"
-                className="underline underline-offset-2 hover:text-zinc-800 dark:hover:text-zinc-200"
+                className="py-1 underline-offset-2 hover:text-ink hover:underline"
               >
                 Delete
               </button>

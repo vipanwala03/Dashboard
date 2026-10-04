@@ -1,31 +1,34 @@
 import type { Task } from "@/lib/google/tasks";
-import { dayKey, formatDayKey } from "@/lib/dates";
-import { addTaskAction, completeTaskAction } from "@/app/dashboard/actions";
-import { AddTaskButton, CompleteTaskButton } from "./task-buttons";
+import { formatDayKey } from "@/lib/dates";
+import { completeTaskAction } from "@/app/dashboard/actions";
+import { CompleteTaskButton } from "./task-buttons";
+
+function dueLabel(due: string, todayKey: string) {
+  if (due === todayKey) return { text: "Due today", tone: "text-accent-soft" };
+  if (due < todayKey) {
+    return {
+      text: `Overdue · ${formatDayKey(due, "short")}`,
+      tone: "text-warn-ink",
+    };
+  }
+  return { text: `Due ${formatDayKey(due, "short")}`, tone: "text-ink-muted" };
+}
 
 function TaskRow({ task, todayKey }: { task: Task; todayKey: string }) {
-  const overdue = task.due !== undefined && task.due < todayKey;
+  const due = task.due ? dueLabel(task.due, todayKey) : null;
   return (
     <li>
-      <div className="flex items-start gap-3 py-2">
-        <form action={completeTaskAction} className="flex">
+      <div className="flex items-start gap-3 py-2.5">
+        <form action={completeTaskAction} className="mt-0.5 flex">
           <input type="hidden" name="taskId" value={task.id} />
           <CompleteTaskButton title={task.title} />
         </form>
         <div className="min-w-0 flex-1">
-          <p className="text-black dark:text-zinc-50">{task.title}</p>
+          <p className="text-sm text-ink max-sm:text-[15px]">{task.title}</p>
           {task.notes && (
-            <p className="truncate text-sm text-zinc-500">{task.notes}</p>
+            <p className="truncate text-xs text-ink-muted">{task.notes}</p>
           )}
-          {task.due && (
-            <p
-              className={`text-sm ${overdue ? "text-red-600 dark:text-red-400" : "text-zinc-500"}`}
-            >
-              {task.due === todayKey
-                ? "Due today"
-                : `${overdue ? "Overdue" : "Due"} · ${formatDayKey(task.due, "short")}`}
-            </p>
-          )}
+          {due && <p className={`mt-0.5 text-xs ${due.tone}`}>{due.text}</p>}
         </div>
       </div>
       {task.subtasks.length > 0 && (
@@ -41,43 +44,19 @@ function TaskRow({ task, todayKey }: { task: Task; todayKey: string }) {
 
 export function TaskList({
   tasks,
-  timeZone,
+  todayKey,
 }: {
   tasks: Task[];
-  // Used to decide what counts as "today" for due dates.
-  timeZone: string;
+  todayKey: string;
 }) {
-  const todayKey = dayKey(new Date(), timeZone);
-
+  if (tasks.length === 0) {
+    return <p className="text-sm text-ink-muted">No open tasks — nice.</p>;
+  }
   return (
-    <div className="flex flex-col gap-4">
-      <form action={addTaskAction} className="flex flex-wrap gap-2">
-        <input
-          name="title"
-          required
-          placeholder="Add a task"
-          className="h-10 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 text-black placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-        />
-        <input
-          type="date"
-          name="due"
-          aria-label="Due date (optional)"
-          className="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-        />
-        <AddTaskButton />
-      </form>
-
-      {tasks.length === 0 ? (
-        <p className="text-zinc-600 dark:text-zinc-400">
-          No open tasks — nice.
-        </p>
-      ) : (
-        <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white px-4 dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
-          {tasks.map((task) => (
-            <TaskRow key={task.id} task={task} todayKey={todayKey} />
-          ))}
-        </ul>
-      )}
-    </div>
+    <ul className="-mr-2 flex max-h-80 flex-col divide-y divide-line-soft overflow-y-auto border-t border-line-soft pr-2">
+      {tasks.map((task) => (
+        <TaskRow key={task.id} task={task} todayKey={todayKey} />
+      ))}
+    </ul>
   );
 }
