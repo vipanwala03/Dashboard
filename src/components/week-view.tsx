@@ -160,13 +160,14 @@ function EventBlock({ event }: { event: PositionedEvent }) {
   const top = (event.startMin / 60) * HOUR_HEIGHT;
   const height = (duration / 60) * HOUR_HEIGHT;
   const width = 100 / event.cols;
+  const Wrapper = event.suggested ? "div" : "a";
   return (
-    <a
-      href={event.href}
-      target="_blank"
-      rel="noreferrer"
+    <Wrapper
+      {...(event.suggested
+        ? {}
+        : { href: event.href, target: "_blank", rel: "noreferrer" })}
       title={`${event.title}\n${event.timeLabel}${event.location ? `\n${event.location}` : ""}\n${event.calendarName}`}
-      className="absolute flex flex-col gap-0.5 overflow-hidden rounded-lg border px-2 py-1 text-ink transition-[filter] hover:z-10 hover:brightness-125"
+      className={`absolute flex flex-col gap-0.5 overflow-hidden rounded-lg border px-2 py-1 text-ink transition-[filter] hover:z-10 hover:brightness-125 ${event.suggested ? "border-dashed" : ""}`}
       style={{
         top: top + 1,
         height: height - 3,
@@ -189,7 +190,7 @@ function EventBlock({ event }: { event: PositionedEvent }) {
             {event.title}
           </span>
           <span className="truncate font-mono text-[11px] opacity-80">
-            {event.timeLabel}
+            {event.suggested ? `Suggested · ${event.timeLabel}` : event.timeLabel}
           </span>
           {event.location && (
             <span className="truncate text-[11px] opacity-70">
@@ -198,7 +199,7 @@ function EventBlock({ event }: { event: PositionedEvent }) {
           )}
         </>
       )}
-    </a>
+    </Wrapper>
   );
 }
 

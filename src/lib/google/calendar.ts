@@ -154,3 +154,26 @@ export async function listCalendarRange(
     events: sortable.map((s) => s.event),
   };
 }
+
+// Adds an event to the user's primary calendar and returns its id. Used when
+// the user accepts an AI suggestion — suggestions themselves never touch
+// Google.
+export async function createCalendarEvent(
+  accessToken: string,
+  event: { title: string; start: string; end: string; description?: string }
+): Promise<{ id: string; htmlLink?: string }> {
+  return googleFetch(
+    "Google Calendar",
+    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+    accessToken,
+    {
+      method: "POST",
+      body: {
+        summary: event.title,
+        description: event.description,
+        start: { dateTime: event.start },
+        end: { dateTime: event.end },
+      },
+    }
+  );
+}

@@ -17,6 +17,7 @@ import {
 import { listCalendarRange } from "@/lib/google/calendar";
 import { listOpenTasks } from "@/lib/google/tasks";
 import { listRecentNotes } from "@/lib/notes";
+import { listPendingSuggestions } from "@/lib/suggestions";
 import { dayKey, formatDayKey, minutesInZone } from "@/lib/dates";
 import { buildWeekLayout } from "@/lib/week-layout";
 
@@ -93,7 +94,7 @@ export default async function DashboardPage({
   const token = settle("Google token", () =>
     getGoogleAccessToken(supabase, user.id)
   );
-  const [calendar, tasks, notes] = await Promise.all([
+  const [calendar, tasks, notes, suggestions] = await Promise.all([
     token.then((t) =>
       t.status === "ok"
         ? settle("Calendar fetch", () =>
@@ -105,6 +106,7 @@ export default async function DashboardPage({
       t.status === "ok" ? settle("Tasks fetch", () => listOpenTasks(t.data)) : t
     ),
     settle("Notes fetch", () => listRecentNotes(supabase)),
+    settle("Suggestions fetch", () => listPendingSuggestions(supabase)),
   ]);
 
   // Tasks only store a date, and notes and the greeting need a zone to show
@@ -193,14 +195,18 @@ export default async function DashboardPage({
             )}
           </Panel>
 
-          <AiPlannerPanel />
+          <AiPlannerPanel
+            suggestions={suggestions.status === "ok" ? suggestions.data : []}
+            timeZone={timeZone}
+          />
         </div>
 
         {calendar.status === "ok" ? (
           <WeekView
             layout={buildWeekLayout(
               calendar.data,
-              tasks.status === "ok" ? tasks.data : null
+              tasks.status === "ok" ? tasks.data : null,
+              suggestions.status === "ok" ? suggestions.data : []
             )}
             startKey={calendar.data.startKey}
             todayKey={todayKey}

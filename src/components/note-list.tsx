@@ -1,5 +1,6 @@
 import type { Note } from "@/lib/notes";
 import { deleteNoteAction } from "@/app/dashboard/actions";
+import { PlanNoteButton } from "./planner-controls";
 
 export function NoteList({
   notes,
@@ -34,15 +35,18 @@ export function NoteList({
               {fmt.format(new Date(note.created_at))}
               {note.source === "voice" && " · dictated"}
             </span>
-            <form action={deleteNoteAction}>
-              <input type="hidden" name="noteId" value={note.id} />
-              <button
-                type="submit"
-                className="py-1 underline-offset-2 hover:text-ink hover:underline"
-              >
-                Delete
-              </button>
-            </form>
+            <div className="flex items-center gap-3">
+              <PlanNoteButton noteId={note.id} />
+              <form action={deleteNoteAction}>
+                <input type="hidden" name="noteId" value={note.id} />
+                <button
+                  type="submit"
+                  className="py-1 underline-offset-2 hover:text-ink hover:underline"
+                >
+                  Delete
+                </button>
+              </form>
+            </div>
           </div>
         </li>
       ))}

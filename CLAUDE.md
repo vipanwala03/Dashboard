@@ -66,11 +66,18 @@ from an earlier Cowork session) — the roadmap status below is the living summa
       12-hour window that follows the clock within the hours that have events. Tasks can be
       dictated (`src/lib/use-dictation.ts`, shared with notes). The AI planner panel is a
       disabled placeholder. Preview mockup: https://claude.ai/artifact/R37Lpm5jzuhCzhwQB4NFgz
-- [ ] Phase 7 — AI suggestions (next up). Agreed scope beyond the original plan: the AI
-      schedules tasks/notes as calendar events (Google Tasks only stores due dates, so a
-      scheduled task becomes a Calendar event), suggesting a time unless one is given;
-      suggestions show as dashed "Suggested" blocks in the week view until accepted. (Claude API reads a note + calendar/tasks context, proposes
-      a next step)
+- [x] Phase 7 — AI suggestions (built; awaiting the user's signed-in checkpoint test).
+      On demand, not automatic: the AI planner panel's ask box (typed or dictated) and a
+      "Plan this" link on each note call `askPlannerAction` (`src/app/dashboard/actions.ts`),
+      which sends the request/note + next 7 days of events + open tasks to Claude
+      (`src/lib/ai/planner.ts`, model `claude-sonnet-5-5`, structured JSON output, server-side
+      refusal fallbacks). Claude writes wall-clock times in the calendar's zone; the server
+      converts (`zonedTimeToDate`) and drops anything malformed, past, too long, or
+      overlapping an existing event. Proposals are stored as `pending` rows in `suggestions`
+      and drawn as dashed "Suggested" blocks in the week view. "Add to calendar" creates the
+      event on the primary Google calendar (`createCalendarEvent`); "Dismiss" hides it.
+      Suggestions never touch Google until accepted. Tasks stay in Google Tasks (they only
+      hold due dates), so a scheduled task becomes a Calendar event.
 - [ ] Phase 8 — PWA / installable
 - [ ] Phase 9 (optional) — native App Store wrap via Capacitor
 
@@ -78,8 +85,10 @@ from an earlier Cowork session) — the roadmap status below is the living summa
 
 - `notes` — `user_id` defaults to `auth.uid()` (so inserts don't send it); RLS policies
   allow the owner to select/insert/delete. `source` is checked to be `text` or `voice`.
-- `suggestions` — RLS enabled, no policies yet beyond lockdown; add user-scoped policies
-  when Phase 7 needs real reads/writes (it has no `user_id`; scope via `note_id` → `notes`).
+- `suggestions` — one proposed calendar event: `user_id` (defaults to `auth.uid()`),
+  `title`, `start_at`, `end_at`, `reason`, `status` (`pending`/`accepted`/`dismissed`),
+  optional `note_id` (the note it came from), `calendar_event_id` once accepted. Owner-only
+  RLS for select/insert/update/delete.
 - `google_tokens` — one row per user, RLS-scoped to `auth.uid() = user_id`, holds Google's
   `access_token` / `refresh_token` / `expires_at`.
 
@@ -89,6 +98,8 @@ from an earlier Cowork session) — the roadmap status below is the living summa
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — pull both from the Supabase MCP server
   (`get_project_url` / `get_publishable_keys` with project ref `tmiajpdhedymuwfwnbrv`) once
   it's connected, or from the Supabase dashboard under Project Settings → API.
+- `ANTHROPIC_API_KEY` powers the AI planner (set in `.env.local` and in Vercel for
+  production + preview).
 - It also needs `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (the same OAuth client Supabase's
   Google provider uses) to refresh Google access tokens. Both are set in Vercel too; the
   secret is a "sensitive" var there, so it can't be read back — get it from Google Cloud

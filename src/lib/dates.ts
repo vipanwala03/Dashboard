@@ -41,3 +41,19 @@ export function minutesInZone(date: Date, timeZone: string) {
     Number(parts.find((p) => p.type === type)?.value ?? 0);
   return get("hour") * 60 + get("minute");
 }
+
+// The instant for a wall-clock time ("YYYY-MM-DDTHH:mm") in the given time
+// zone. Two passes of offset correction land on the right instant, including
+// across daylight-saving changes.
+export function zonedTimeToDate(local: string, timeZone: string) {
+  const asUtc = Date.parse(`${local}:00Z`);
+  let guess = asUtc;
+  for (let i = 0; i < 2; i++) {
+    const base = Math.floor(guess / 60000) * 60000;
+    const localAsUtc =
+      Date.parse(`${dayKey(new Date(base), timeZone)}T00:00:00Z`) +
+      minutesInZone(new Date(base), timeZone) * 60000;
+    guess = asUtc - (localAsUtc - base);
+  }
+  return new Date(guess);
+}

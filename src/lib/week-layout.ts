@@ -1,4 +1,5 @@
-import type { CalendarRange } from "@/lib/google/calendar";
+import type { CalendarEvent, CalendarRange } from "@/lib/google/calendar";
+import type { Suggestion } from "@/lib/suggestions";
 import type { Task } from "@/lib/google/tasks";
 import { addDays, dayKey, minutesInZone } from "@/lib/dates";
 
@@ -20,6 +21,8 @@ export type PositionedEvent = {
   calendarName: string;
   color: string;
   href?: string;
+  // An unaccepted AI suggestion: drawn dashed, not on Google Calendar yet.
+  suggested?: boolean;
   // Minutes since local midnight, clipped to this day.
   startMin: number;
   endMin: number;
@@ -93,9 +96,25 @@ function flatten(tasks: Task[]): Task[] {
 // minute in the calendar's time zone.
 export function buildWeekLayout(
   range: CalendarRange,
-  tasks: Task[] | null
+  tasks: Task[] | null,
+  suggestions: Suggestion[] = []
 ): WeekLayout {
   const { timeZone, todayKey } = range;
+  // Pending suggestions lay out like timed events (so they count toward the
+  // busy hours and sit beside overlapping events), flagged as suggested.
+  const events: (CalendarEvent & { suggested?: boolean })[] = [
+    ...range.events,
+    ...suggestions.map((s) => ({
+      id: `suggestion:${s.id}`,
+      title: s.title,
+      allDay: false,
+      start: s.start_at,
+      end: s.end_at,
+      calendarName: "Suggested",
+      color: "#22d3ee",
+      suggested: true,
+    })),
+  ];
   const timeFmt = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hour: "numeric",
@@ -110,7 +129,7 @@ export function buildWeekLayout(
     const allDay: AllDayItem[] = [];
     const timed: Omit<PositionedEvent, "col" | "cols">[] = [];
 
-    for (const e of range.events) {
+    for (const e of events) {
       if (e.allDay) {
         // All-day end dates are exclusive.
         if (e.start <= key && key < e.end) {
@@ -150,6 +169,7 @@ export function buildWeekLayout(
         calendarName: e.calendarName,
         color: e.color,
         href: e.htmlLink,
+        suggested: e.suggested,
         startMin,
         endMin,
       });
